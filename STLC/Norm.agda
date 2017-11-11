@@ -24,7 +24,7 @@ _==>*_ : ∀ {Γ t} → Rel (Tm Γ t) _
 _==>*_ = Star _==>_
 
 NF : ∀ {a b} {A : Set a} → Rel A b → A → Set _
-NF rel x = ∄ (rel x)
+NF next x = ∄ (next x)
 
 value⇒normal : ∀ {Γ t e} → Value {Γ} {t} e → NF _==>_ e
 value⇒normal (lam t e) (_ , ())
