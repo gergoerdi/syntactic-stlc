@@ -31,9 +31,12 @@ subᵛ (σ , e) vz     = e
 subᵛ (σ , e) (vs v) = subᵛ σ v
 
 sub : ∀ {Γ Δ t} → Γ ⊢⋆ Δ → Tm Δ t → Tm Γ t
-sub σ (var x)   = subᵛ σ x
-sub σ (lam t e) = lam t (sub (shift σ) e)
-sub σ (f · e)   = sub σ f · sub σ e
+sub σ (var x)                  = subᵛ σ x
+sub σ (lam t e)                = lam t (sub (shift σ) e)
+sub σ (f · e)                  = sub σ f · sub σ e
+sub σ true                     = true
+sub σ false                    = false
+sub σ (if b then thn else els) = if sub σ b then sub σ thn else sub σ els
 
 ren⇒sub : ∀ {Γ Δ} → Γ ⊇ Δ → Γ ⊢⋆ Δ
 ren⇒sub done       = ∅
@@ -83,9 +86,12 @@ subᵛ-⊢⋆⊇ (σ , e) (keep Δ⊇Θ) (vs v) rewrite subᵛ-⊢⋆⊇ σ Δ�
 
 sub-⊢⋆⊇ : ∀ {Γ Δ Θ t} (σ : Γ ⊢⋆ Δ) (Δ⊇Θ : Δ ⊇ Θ) (e : Tm Θ t) →
   sub (σ ⊢⋆⊇ Δ⊇Θ) e ≡ sub σ (ren Δ⊇Θ e)
-sub-⊢⋆⊇ σ Δ⊇Θ (var v)   = subᵛ-⊢⋆⊇ σ Δ⊇Θ v
-sub-⊢⋆⊇ σ Δ⊇Θ (lam t e) rewrite assocᵣₛᵣ (wk {t}) σ Δ⊇Θ | sub-⊢⋆⊇ (shift σ) (keep Δ⊇Θ) e = refl
-sub-⊢⋆⊇ σ Δ⊇Θ (f · e)   rewrite sub-⊢⋆⊇ σ Δ⊇Θ f | sub-⊢⋆⊇ σ Δ⊇Θ e = refl
+sub-⊢⋆⊇ σ Δ⊇Θ (var v)                  = subᵛ-⊢⋆⊇ σ Δ⊇Θ v
+sub-⊢⋆⊇ σ Δ⊇Θ (lam t e)                rewrite assocᵣₛᵣ (wk {t}) σ Δ⊇Θ | sub-⊢⋆⊇ (shift σ) (keep Δ⊇Θ) e = refl
+sub-⊢⋆⊇ σ Δ⊇Θ (f · e)                  rewrite sub-⊢⋆⊇ σ Δ⊇Θ f | sub-⊢⋆⊇ σ Δ⊇Θ e = refl
+sub-⊢⋆⊇ σ Δ⊇Θ true                     = refl
+sub-⊢⋆⊇ σ Δ⊇Θ false                    = refl
+sub-⊢⋆⊇ σ Δ⊇Θ (if b then thn else els) rewrite sub-⊢⋆⊇ σ Δ⊇Θ b | sub-⊢⋆⊇ σ Δ⊇Θ thn | sub-⊢⋆⊇ σ Δ⊇Θ els = refl
 
 sub-⊇⊢⋆ᵛ : ∀ {Γ Δ Θ t} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (v : Var t Θ) →
   subᵛ (Γ⊇Δ ⊇⊢⋆ σ) v ≡ ren Γ⊇Δ (subᵛ σ v)
@@ -94,9 +100,12 @@ sub-⊇⊢⋆ᵛ Γ⊇Δ (σ , _) (vs v) = sub-⊇⊢⋆ᵛ Γ⊇Δ σ v
 
 sub-⊇⊢⋆ : ∀ {Γ Δ Θ t} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (e : Tm Θ t) →
   sub (Γ⊇Δ ⊇⊢⋆ σ) e ≡ ren Γ⊇Δ (sub σ e)
-sub-⊇⊢⋆ Γ⊇Δ σ (var v)   = sub-⊇⊢⋆ᵛ Γ⊇Δ σ v
-sub-⊇⊢⋆ Γ⊇Δ σ (f · e)   rewrite sub-⊇⊢⋆ Γ⊇Δ σ f | sub-⊇⊢⋆ Γ⊇Δ σ e = refl
-sub-⊇⊢⋆ Γ⊇Δ σ (lam t e) rewrite
+sub-⊇⊢⋆ Γ⊇Δ σ (var v)                  = sub-⊇⊢⋆ᵛ Γ⊇Δ σ v
+sub-⊇⊢⋆ Γ⊇Δ σ (f · e)                  rewrite sub-⊇⊢⋆ Γ⊇Δ σ f | sub-⊇⊢⋆ Γ⊇Δ σ e = refl
+sub-⊇⊢⋆ Γ⊇Δ σ true                     = refl
+sub-⊇⊢⋆ Γ⊇Δ σ false                    = refl
+sub-⊇⊢⋆ Γ⊇Δ σ (if b then thn else els) rewrite sub-⊇⊢⋆ Γ⊇Δ σ b | sub-⊇⊢⋆ Γ⊇Δ σ thn | sub-⊇⊢⋆ Γ⊇Δ σ els = refl
+sub-⊇⊢⋆ Γ⊇Δ σ (lam t e)                rewrite
   assocᵣᵣₛ (wk {t}) Γ⊇Δ σ | refl-⊇⊇ Γ⊇Δ | sym (Γ⊇Δ ⊇⊇-refl) |
   assocᵣᵣₛ (keep Γ⊇Δ) (wk {t}) σ | sym (assocᵣᵣₛ (keep Γ⊇Δ) (wk {t}) σ) |
   Γ⊇Δ ⊇⊇-refl | sub-⊇⊢⋆ (keep Γ⊇Δ) (shift σ) e
@@ -117,9 +126,12 @@ subᵛ-refl vz         = refl
 subᵛ-refl (vs {u} v) rewrite sub-⊇⊢⋆ᵛ (wk {u}) reflₛ v | subᵛ-refl v | renᵛ-refl v = refl
 
 sub-refl : ∀ {Γ t} (e : Tm Γ t) → sub reflₛ e ≡ e
-sub-refl (var v)   = subᵛ-refl v
-sub-refl (lam t e) rewrite sub-refl e = refl
-sub-refl (f · e)   rewrite sub-refl f | sub-refl e = refl
+sub-refl (var v)                 = subᵛ-refl v
+sub-refl (lam t e)               rewrite sub-refl e = refl
+sub-refl (f · e)                 rewrite sub-refl f | sub-refl e = refl
+sub-refl true                     = refl
+sub-refl false                    = refl
+sub-refl (if b then thn else els) rewrite sub-refl b | sub-refl thn | sub-refl els = refl
 
 subᵛ-⊢⊢⋆  : ∀ {Γ Δ Θ t} (σ : Γ ⊢⋆ Θ) (ρ : Θ ⊢⋆ Δ) (v : Var t Δ) →
   subᵛ (σ ⊢⊢⋆ ρ) v ≡ sub σ (subᵛ ρ v)
@@ -128,12 +140,15 @@ subᵛ-⊢⊢⋆ σ (ρ , _) (vs v) = subᵛ-⊢⊢⋆ σ ρ v
 
 sub-⊢⊢⋆ : ∀ {Γ Δ Θ t} (σ : Γ ⊢⋆ Θ) (ρ : Θ ⊢⋆ Δ) (e : Tm Δ t) →
   sub (σ ⊢⊢⋆ ρ) e ≡ sub σ (sub ρ e)
-sub-⊢⊢⋆ σ ρ (var v)   = subᵛ-⊢⊢⋆ σ ρ v
-sub-⊢⊢⋆ σ ρ (lam t e) rewrite
+sub-⊢⊢⋆ σ ρ (var v)                  = subᵛ-⊢⊢⋆ σ ρ v
+sub-⊢⊢⋆ σ ρ (f · e)                  rewrite sub-⊢⊢⋆ σ ρ f | sub-⊢⊢⋆ σ ρ e = refl
+sub-⊢⊢⋆ σ ρ true                     = refl
+sub-⊢⊢⋆ σ ρ false                    = refl
+sub-⊢⊢⋆ σ ρ (if b then thn else els) rewrite sub-⊢⊢⋆ σ ρ b | sub-⊢⊢⋆ σ ρ thn | sub-⊢⊢⋆ σ ρ els = refl
+sub-⊢⊢⋆ σ ρ (lam t e)                rewrite
   assocᵣₛₛ (wk {t}) σ ρ | sym (cong (_⊢⊢⋆ ρ) ((wk {t} ⊇⊢⋆ σ) ⊢⋆⊇-refl)) |
   sym (assocₛᵣₛ ρ (wk {t}) (shift σ)) | sub-⊢⊢⋆ (shift σ) (shift ρ) e
   = refl
-sub-⊢⊢⋆ σ ρ (f · e)   rewrite sub-⊢⊢⋆ σ ρ f | sub-⊢⊢⋆ σ ρ e = refl
 
 -- -- Is this version clearer?
 -- sub-⊢⊢⋆ σ ρ (lam t e) = cong (lam t) $

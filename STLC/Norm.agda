@@ -5,6 +5,7 @@ open import Sub
 
 open import Relation.Binary.PropositionalEquality
 open import Data.Empty
+open import Data.Unit
 open import Relation.Binary
 open import Data.Star
 open import Level renaming (zero to lzero; suc to lsuc)
@@ -13,12 +14,17 @@ open import Function.Equivalence hiding (sym)
 open import Function.Equality using (_⟨$⟩_)
 
 data Value : {Γ : Ctx} → {t : Ty} → Tm Γ t → Set where
-  lam : ∀ {Γ t} → ∀ u (e : Tm _ t) → Value {Γ} (lam u e)
+  lam   : ∀ {Γ t} → ∀ u (e : Tm _ t) → Value {Γ} (lam u e)
+  true  : ∀ {Γ} → Value {Γ} true
+  false : ∀ {Γ} → Value {Γ} false
 
 data _==>_ {Γ} : ∀ {t} → Rel (Tm Γ t) lzero where
   app-lam : ∀ {t u} (f : Tm _ t) {v : Tm _ u} → Value v → lam u f · v ==> sub (reflₛ , v) f
   appˡ : ∀ {t u} {f f′ : Tm Γ (u ▷ t)} → f ==> f′ → (e : Tm Γ u) → f · e ==> f′ · e
   appʳ : ∀ {t u} {f} → Value {Γ} {u ▷ t} f → ∀ {e e′ : Tm Γ u} → e ==> e′ → f · e ==> f · e′
+  if-cond : ∀ {t} {b b′ : Tm Γ _} → b ==> b′ → (thn els : Tm Γ t) → (if b then thn else els) ==> (if b′ then thn else els)
+  if-true : ∀ {t} (thn els : Tm _ t) → (if true then thn else els) ==> thn
+  if-false : ∀ {t} (thn els : Tm _ t) → (if false then thn else els) ==> els
 
 _==>*_ : ∀ {Γ t} → Rel (Tm Γ t) _
 _==>*_ = Star _==>_
@@ -28,6 +34,8 @@ NF next x = ∄ (next x)
 
 value⇒normal : ∀ {Γ t e} → Value {Γ} {t} e → NF _==>_ e
 value⇒normal (lam t e) (_ , ())
+value⇒normal true (_ , ())
+value⇒normal false (_ , ())
 
 Deterministic : ∀ {a b} {A : Set a} → Rel A b → Set _
 Deterministic _∼_ = ∀ {x y y′} → x ∼ y → x ∼ y′ → y ≡ y′
@@ -37,11 +45,18 @@ deterministic (app-lam f _) (app-lam ._ _) = refl
 deterministic (app-lam f v) (appˡ () _)
 deterministic (app-lam f v) (appʳ f′ e) = ⊥-elim (value⇒normal v (, e))
 deterministic (appˡ () e) (app-lam f v)
-deterministic (appˡ f e) (appˡ f′ ._) = cong _ (deterministic f f′)
+deterministic (appˡ f e) (appˡ f′ ._) rewrite deterministic f f′ = refl
 deterministic (appˡ f e) (appʳ f′ _) = ⊥-elim (value⇒normal f′ (, f))
 deterministic (appʳ f e) (app-lam f′ v) = ⊥-elim (value⇒normal v (, e))
 deterministic (appʳ f e) (appˡ f′ _) = ⊥-elim (value⇒normal f (, f′))
-deterministic (appʳ f e) (appʳ f′ e′) = cong _ (deterministic e e′)
+deterministic (appʳ f e) (appʳ f′ e′) rewrite deterministic e e′ = refl
+deterministic (if-true thn els) (if-true _ _) = refl
+deterministic (if-false thn els) (if-false _ _) = refl
+deterministic (if-cond b thn els) (if-cond b′ _ _) rewrite deterministic b b′ = refl
+deterministic (if-cond () thn els) (if-true _ _)
+deterministic (if-cond () thn els) (if-false _ _)
+deterministic (if-true thn els) (if-cond () _ _)
+deterministic (if-false thn els) (if-cond () _ _)
 
 Halts : ∀ {Γ t} → Tm Γ t → Set
 Halts e = ∃ λ e′ → e ==>* e′ × Value e′
@@ -60,6 +75,7 @@ mutual
   Saturated′ : ∀ t → Tm ∅ t → Set
   Saturated′ ∙ _ = ⊥
   Saturated′ (t ▷ u) f = ∀ {e} → Saturated e → Saturated (f · e)
+  Saturated′ Bool _ = ⊤
 
 saturated⇒halts : ∀ {t e} → Saturated {t} e → Halts e
 saturated⇒halts = proj₁
@@ -80,10 +96,12 @@ step‿preserves‿saturated step = equivalence (fwd step) (bwd step)
     fwd : ∀ {t} {e e′ : Tm _ t} → e ==> e′ → Saturated e → Saturated e′
     fwd {∙}     step (halts , ())
     fwd {u ▷ t} step (halts , sat) = Equivalence.to (step‿preserves‿halting step) ⟨$⟩ halts , λ e → fwd (appˡ step _) (sat e)
+    fwd {Bool} step (halts , _) = Equivalence.to (step‿preserves‿halting step) ⟨$⟩ halts , _
 
     bwd : ∀ {t} {e e′ : Tm _ t} → e ==> e′ → Saturated e′ → Saturated e
     bwd {∙}     step (halts , ())
     bwd {u ▷ t} step (halts , sat) = Equivalence.from (step‿preserves‿halting step) ⟨$⟩ halts , λ e → bwd (appˡ step _) (sat e)
+    bwd {Bool}  step (halts , _) =  Equivalence.from (step‿preserves‿halting step) ⟨$⟩ halts , _
 
 step*‿preserves‿saturated : ∀ {t} {e e′ : Tm _ t} → e ==>* e′ → Saturated e ⇔ Saturated e′
 step*‿preserves‿saturated ε = id
@@ -100,6 +118,10 @@ saturateᵛ (env , _) (vs x) = saturateᵛ env x
 app-lam* : ∀ {Γ t} {e e′ : Tm Γ t} → e ==>* e′ → Value e′ → ∀ {u} (f : Tm _ u) → lam t f · e ==>* sub (reflₛ , e′) f
 app-lam* steps v f = gmap _ (appʳ (lam _ _)) steps  ◅◅ app-lam f v ◅ ε
 
+if-cond* : ∀ {Γ t} {b b′ : Tm Γ _} → b ==>* b′ → ∀ (thn els : Tm Γ t) →
+  (if b then thn else els) ==>* (if b′ then thn else els)
+if-cond* steps thn els = gmap _ (λ step → if-cond step thn els) steps
+
 -- What is a good name for this?
 -- It basically states that you can push in outer arguments before the innermost one.
 -- Should this be called some kind of constant propagation?
@@ -109,9 +131,16 @@ innermost‿last ∅       e′ = refl
 innermost‿last (σ , e) e′ rewrite innermost‿last σ e′ | sym (sub-⊢⋆⊇ (∅ , e′) wk e) | sub-refl e = refl
 
 saturate : ∀ {Γ σ} → Instantiation σ → ∀ {t} → (e : Tm Γ t) → Saturated (sub σ e)
-saturate         env          (var v) = saturateᵛ env v
-saturate         env          (f · e) with saturate env f | saturate env e
+saturate         env          (var v)                  = saturateᵛ env v
+saturate         env          (f · e)                  with saturate env f | saturate env e
 saturate         env          (f · e) | _ , sat-f | sat-e = sat-f sat-e
+saturate         env          true                     = (true , ε , true) , _
+saturate         env          false                    = (false , ε , false) , _
+saturate         env          (if b then thn else els) with saturate env b
+saturate {Γ} {σ} env (if b then thn else els) | (_ , b-steps , true) , _ =
+  Equivalence.from (step*‿preserves‿saturated (if-cond* b-steps _ _ ◅◅ (if-true _ _ ◅ ε))) ⟨$⟩ saturate env thn
+saturate         env (if b then thn else els) | (_ , b-steps , false) , _ =
+  Equivalence.from (step*‿preserves‿saturated (if-cond* b-steps _ _ ◅◅ (if-false _ _ ◅ ε))) ⟨$⟩ saturate env els
 saturate {Γ} {σ} env {.u ▷ t} (lam u f) = value⇒halts (lam u (sub (shift σ) f)) , sat-f
   where
     f′ = sub (shift σ) f
