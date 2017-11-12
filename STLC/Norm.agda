@@ -122,6 +122,8 @@ if-cond* : ∀ {Γ t} {b b′ : Tm Γ _} → b ==>* b′ → ∀ (thn els : Tm �
   (if b then thn else els) ==>* (if b′ then thn else els)
 if-cond* steps thn els = gmap _ (λ step → if-cond step thn els) steps
 
+open import Sub.Properties
+
 -- What is a good name for this?
 -- It basically states that you can push in outer arguments before the innermost one.
 -- Should this be called some kind of constant propagation?
