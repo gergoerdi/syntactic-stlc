@@ -3,7 +3,7 @@ import LangAlg.Base
 
 module LangAlg {Ty : Set} (cs : let open LangAlg.Base Ty in List Code) where
 
-open LangAlg.Base Ty public
+open LangAlg.Base Ty
 open import Ren Ty
 open import Data.List.All
 

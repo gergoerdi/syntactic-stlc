@@ -12,8 +12,7 @@ data Ty : Set where
   _[×]_ : Ty → Ty → Ty
 
 open import Data.Vec
-import LangAlg Ty as LA
-open LA
+open import LangAlg.Base Ty
 open import Function using (_$_; _∘′_)
 open import Relation.Binary.PropositionalEquality
 
@@ -29,7 +28,7 @@ STLC =
   some (λ t → some (λ u → node (t [×] u ∷ []) (u ≡_))) ∷
   []
 
-open LA.Sub STLC
+open import LangAlg STLC
 open import Data.Fin using (#_)
 
 -- Tm : Ctx → Ty → Set
