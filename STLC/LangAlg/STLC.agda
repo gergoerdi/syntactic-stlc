@@ -9,7 +9,7 @@ data Ty : Set where
   ∙   : Ty
   _▷_ : Ty → Ty → Ty
   Bool : Ty
-  _[×]_ : Ty → Ty → Ty
+  -- _[×]_ : Ty → Ty → Ty
 
 open import Data.Vec
 open import LangAlg.Base Ty
@@ -23,14 +23,14 @@ STLC =
   node [] (Bool ≡_) ∷
   node [] (Bool ≡_) ∷
   some (λ t → node (Bool ∷ t ∷ t ∷ []) (t ≡_)) ∷
-  some (λ t → some (λ u → node (t ∷ u ∷ []) (t [×] u ≡_))) ∷
-  some (λ t → some (λ u → node (t [×] u ∷ []) (t ≡_))) ∷
-  some (λ t → some (λ u → node (t [×] u ∷ []) (u ≡_))) ∷
+  -- some (λ t → some (λ u → node (t ∷ u ∷ []) (t [×] u ≡_))) ∷
+  -- some (λ t → some (λ u → node (t [×] u ∷ []) (t ≡_))) ∷
+  -- some (λ t → some (λ u → node (t [×] u ∷ []) (u ≡_))) ∷
   []
 
 open import LangAlg STLC
 open import Ren Ty
-open import Data.Fin using (#_)
+-- open import Data.Fin using (#_)
 
 -- Tm : Ctx → Ty → Set
 -- Tm = ⟦ STLC ⟧
@@ -38,41 +38,35 @@ open import Data.Fin using (#_)
 [var] : ∀ {t Γ} → Var t Γ → Tm Γ t
 [var] = var
 
-[lam] : ∀ {u Γ} t → Tm (Γ , t) u → Tm Γ (t ▷ u)
-[lam] t e = con (# 0) $ bind t e
+pattern [lam] t e = here (bind t e {{refl}})
+pattern _[·]_ {u} {t} f e = there (here (some u (some t (node (f ∷ e ∷ []) {{refl}}))))
 
-_[·]_ : ∀ {u t Γ} → Tm Γ (u ▷ t) → Tm Γ u → Tm Γ t
-_[·]_ {u} {t} f e = con (# 1) $ some u (some t (node (f ∷ e ∷ [])))
+pattern [true] = there (there (here (node [] {{refl}})))
+pattern [false] = there (there (there (here (node [] {{refl}}))))
+pattern [if]_[then]_[else]_ {t} b thn els = there (there (there (there (here (some t (node (b ∷ thn ∷ els ∷ []) {{refl}}))))))
 
-[true] : ∀ {Γ} → Tm Γ Bool
-[true] = con (# 2) $ node []
+-- _[,]_ : ∀ {t u Γ} → Tm Γ t → Tm Γ u → Tm Γ (t [×] u)
+-- _[,]_ {t} {u} e₁ e₂ = con (# 5) $ some t (some u (node (e₁ ∷ e₂ ∷ [])))
 
-[false] : ∀ {Γ} → Tm Γ Bool
-[false] = con (# 3) $ node []
+-- [fst] :  ∀ {t u Γ} → Tm Γ (t [×] u) → Tm Γ t
+-- [fst] {t} {u} e = con (# 6) $ some t (some u (node (e ∷ [])))
 
-[if]_[then]_[else]_ : ∀ {t Γ} → Tm Γ Bool → Tm Γ t → Tm Γ t → Tm Γ t
-[if]_[then]_[else]_ {t} b thn els = con (# 4) $ some t (node (b ∷ thn ∷ els ∷ []))
+-- [snd] :  ∀ {t u Γ} → Tm Γ (t [×] u) → Tm Γ u
+-- [snd] {t} {u} e = con (# 7) $ some t (some u (node (e ∷ [])))
 
-_[,]_ : ∀ {t u Γ} → Tm Γ t → Tm Γ u → Tm Γ (t [×] u)
-_[,]_ {t} {u} e₁ e₂ = con (# 5) $ some t (some u (node (e₁ ∷ e₂ ∷ [])))
-
-[fst] :  ∀ {t u Γ} → Tm Γ (t [×] u) → Tm Γ t
-[fst] {t} {u} e = con (# 6) $ some t (some u (node (e ∷ [])))
-
-[snd] :  ∀ {t u Γ} → Tm Γ (t [×] u) → Tm Γ u
-[snd] {t} {u} e = con (# 7) $ some t (some u (node (e ∷ [])))
+pattern ∎ = there (there (there (there (there ()))))
 
 ID : ∀ {Γ} t → Tm Γ (t ▷ t)
-ID t = [lam] t $ [var] vz
+ID t = [lam] t ([var] vz)
 
 CONST : ∀ {Γ} t u → Tm Γ (t ▷ u ▷ t)
-CONST t u = [lam] t $ [lam] u $ [var] (vs vz)
+CONST t u = [lam] t ([lam] u ([var] (vs vz)))
 
 CONST‿ID : ∀ {Γ} t u → Tm Γ (u ▷ (t ▷ t))
 CONST‿ID t u = CONST (t ▷ t) u [·] ID t
 
-ASSOC : ∀ {Γ} t u s → Tm Γ ((t [×] (u [×] s)) ▷ ((t [×] u) [×] s))
-ASSOC t u s = [lam] _ $ ([fst] ([var] vz) [,] [fst] ([snd] ([var] vz))) [,] [snd] ([snd] ([var] vz))
+-- ASSOC : ∀ {Γ} t u s → Tm Γ ((t [×] (u [×] s)) ▷ ((t [×] u) [×] s))
+-- ASSOC t u s = [lam] _ $ ([fst] ([var] vz) [,] [fst] ([snd] ([var] vz))) [,] [snd] ([snd] ([var] vz))
 
 open import Relation.Binary.PropositionalEquality
 open import Data.Empty
@@ -85,9 +79,10 @@ open import Function.Equivalence hiding (sym)
 open import Function.Equality using (_⟨$⟩_)
 
 data Value : {Γ : Ctx} → {t : Ty} → Tm Γ t → Set where
-  lam   : ∀ {Γ t} → ∀ u (e : Tm _ t) → Value {Γ} ([lam] u e)
+  lam   : ∀ {Γ t} → ∀ u (e : Tm (Γ , u) t) → Value {Γ} {u ▷ t} ([lam] u e)
   true  : ∀ {Γ} → Value {Γ} [true]
   false : ∀ {Γ} → Value {Γ} [false]
+  -- _,_   : ∀ {Γ t u e₁ e₂} (v₁ : Value {Γ} {t} e₁) (v₂ : Value {Γ} {u} e₂) → Value (e₁ [,] e₂)
 
 data _==>_ {Γ} : ∀ {t} → Rel (Tm Γ t) lzero where
   app-lam : ∀ {t u} (f : Tm _ t) {v : Tm _ u} → Value v → ([lam] u f [·] v) ==> sub (reflₛ , v) f
@@ -107,6 +102,7 @@ value⇒normal : ∀ {Γ t e} → Value {Γ} {t} e → NF _==>_ e
 value⇒normal (lam t e) (_ , ())
 value⇒normal true (_ , ())
 value⇒normal false (_ , ())
+-- value⇒normal (x , y) (_ , ())
 
 Deterministic : ∀ {a b} {A : Set a} → Rel A b → Set _
 Deterministic _∼_ = ∀ {x y y′} → x ∼ y → x ∼ y′ → y ≡ y′
@@ -147,7 +143,7 @@ mutual
   Saturated′ ∙ _ = ⊥
   Saturated′ (t ▷ u) f = ∀ {e} → Saturated e → Saturated (f [·] e)
   Saturated′ Bool _ = ⊤
-  Saturated′ (t [×] u) e = ⊥ -- TODO
+  -- Saturated′ (t [×] u) e = ⊥ -- TODO
 
 saturated⇒halts : ∀ {t e} → Saturated {t} e → Halts e
 saturated⇒halts = proj₁
@@ -169,13 +165,13 @@ step‿preserves‿saturated step = equivalence (fwd step) (bwd step)
     fwd {∙}       step (halts , ())
     fwd {u ▷ t}   step (halts , sat) = Equivalence.to (step‿preserves‿halting step) ⟨$⟩ halts , λ e → fwd (appˡ step _) (sat e)
     fwd {Bool}    step (halts , _) = Equivalence.to (step‿preserves‿halting step) ⟨$⟩ halts , _
-    fwd {t [×] u} step (halts , ()) -- TODO
+    -- fwd {t [×] u} step (halts , ()) -- TODO
 
     bwd : ∀ {t} {e e′ : Tm _ t} → e ==> e′ → Saturated e′ → Saturated e
     bwd {∙}       step (halts , ())
     bwd {u ▷ t}   step (halts , sat) = Equivalence.from (step‿preserves‿halting step) ⟨$⟩ halts , λ e → bwd (appˡ step _) (sat e)
     bwd {Bool}    step (halts , _) =  Equivalence.from (step‿preserves‿halting step) ⟨$⟩ halts , _
-    bwd {t [×] u} step (halts , ()) -- TODO
+    -- bwd {t [×] u} step (halts , ()) -- TODO
 
 step*‿preserves‿saturated : ∀ {t} {e e′ : Tm _ t} → e ==>* e′ → Saturated e ⇔ Saturated e′
 step*‿preserves‿saturated ε = id
@@ -204,38 +200,39 @@ innermost‿last : ∀ {Γ u} (σ : ∅ ⊢⋆ Γ) (e′ : Tm ∅ u) →
 innermost‿last ∅       e′ = refl
 innermost‿last (σ , e) e′ rewrite innermost‿last σ e′ | sym (sub-⊢⋆⊇ (∅ , e′) wk e) | sub-refl e = refl
 
--- saturate : ∀ {Γ σ} → Instantiation σ → ∀ {t} → (e : Tm Γ t) → Saturated (sub σ e)
--- saturate         env          (var v)                  = saturateᵛ env v
--- saturate         env          (f · e)                  with saturate env f | saturate env e
--- saturate         env          (f · e) | _ , sat-f | sat-e = sat-f sat-e
--- saturate         env          true                     = (true , ε , true) , _
--- saturate         env          false                    = (false , ε , false) , _
--- saturate         env          (if b then thn else els) with saturate env b
--- saturate {Γ} {σ} env (if b then thn else els) | (_ , b-steps , true) , _ =
---   Equivalence.from (step*‿preserves‿saturated (if-cond* b-steps _ _ ◅◅ (if-true _ _ ◅ ε))) ⟨$⟩ saturate env thn
--- saturate         env (if b then thn else els) | (_ , b-steps , false) , _ =
---   Equivalence.from (step*‿preserves‿saturated (if-cond* b-steps _ _ ◅◅ (if-false _ _ ◅ ε))) ⟨$⟩ saturate env els
--- saturate {Γ} {σ} env {.u ▷ t} (lam u f) = value⇒halts (lam u (sub (shift σ) f)) , sat-f
---   where
---     f′ = sub (shift σ) f
+saturate : ∀ {Γ σ} → Instantiation σ → ∀ {t} → (e : Tm Γ t) → Saturated (sub σ e)
+saturate         env          (var v)                       = saturateᵛ env v
+saturate         env          (f [·] e)                     with saturate env f | saturate env e
+saturate         env          (f [·] e) | _ , sat-f | sat-e = sat-f sat-e
+saturate         env          [true]                     = ([true] , ε , true) , _
+saturate         env          [false]                    = ([false] , ε , false) , _
+saturate         env          ([if] b [then] thn [else] els) with saturate env b
+saturate {Γ} {σ} env ([if] b [then] thn [else] els) | (_ , b-steps , true) , _ =
+  Equivalence.from (step*‿preserves‿saturated (if-cond* b-steps _ _ ◅◅ (if-true _ _ ◅ ε))) ⟨$⟩ saturate env thn
+saturate         env ([if] b [then] thn [else] els) | (_ , b-steps , false) , _ =
+  Equivalence.from (step*‿preserves‿saturated (if-cond* b-steps _ _ ◅◅ (if-false _ _ ◅ ε))) ⟨$⟩ saturate env els
+saturate {Γ} {σ} env {.u ▷ t} ([lam] u f) = value⇒halts (lam u (sub (shift σ) f)) , sat-f
+  where
+    f′ = sub (shift σ) f
 
---     sat-f : ∀ {e : Tm _ u} → Saturated e → Saturated (lam u f′ · e)
---     sat-f {e} sat-e@((e′ , steps , v) , _) = Equivalence.from (step*‿preserves‿saturated f‿e==>f←σe) ⟨$⟩ sat
---       where
---         f←σe = sub (σ , e′) f
---         f′‿e = lam u f′ · e
+    sat-f : ∀ {e : Tm _ u} → Saturated e → Saturated ([lam] u f′ [·] e)
+    sat-f {e} sat-e@((e′ , steps , v) , _) = Equivalence.from (step*‿preserves‿saturated f‿e==>f←σe) ⟨$⟩ sat
+      where
+        f←σe = sub (σ , e′) f
+        f′‿e = [lam] u f′ [·] e
 
---         sat-e′ : Saturated e′
---         sat-e′ = Equivalence.to (step*‿preserves‿saturated steps) ⟨$⟩ sat-e
+        sat-e′ : Saturated e′
+        sat-e′ = Equivalence.to (step*‿preserves‿saturated steps) ⟨$⟩ sat-e
 
---         sat : Saturated f←σe
---         sat = saturate (env , (v , sat-e′)) f
+        sat : Saturated f←σe
+        sat = saturate (env , (v , sat-e′)) f
 
---         f‿e==>f←σe : f′‿e ==>* f←σe
---         f‿e==>f←σe = subst (λ f₀ → _ ==>* f₀) lemma (app-lam* steps v (sub (shift σ) f))
---           where
---             lemma : sub (∅ , e′) (sub (shift σ) f) ≡ sub (σ , e′) f
---             lemma rewrite sym (sub-⊢⊢⋆ (∅ , e′) (shift σ) f) | innermost‿last σ e′ = refl
+        f‿e==>f←σe : f′‿e ==>* f←σe
+        f‿e==>f←σe = subst (λ f₀ → _ ==>* f₀) lemma (app-lam* steps v (sub (shift σ) f))
+          where
+            lemma : sub (∅ , e′) (sub (shift σ) f) ≡ sub (σ , e′) f
+            lemma rewrite sym (sub-⊢⊢⋆ (∅ , e′) (shift σ) f) | innermost‿last σ e′ = refl
+saturate env ∎
 
--- normalization : ∀ {t} → (e : Tm ∅ t) → Halts e
--- normalization e rewrite sym (sub-refl e) = saturated⇒halts (saturate ∅ e)
+normalization : ∀ {t} → (e : Tm ∅ t) → Halts e
+normalization e rewrite sym (sub-refl e) = saturated⇒halts (saturate ∅ e)
