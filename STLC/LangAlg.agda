@@ -10,6 +10,7 @@ open import Ren Ty
 open import Data.Product
 open import Data.Sum
 open import Data.Empty
+open import Function using (_∘_)
 
 data Code : Set₁ where
   bind : (Ty → Ty → Ty → Set) → Code
@@ -24,11 +25,19 @@ mutual
 
   data ⟦_⟧₀ : List Code → List Code → Ctx → Ty → Set where
     var : ∀ {cs Γ t} → Var t Γ → ⟦ cs ⟧₀ cs Γ t
-    here : ∀ {c cs ds Γ t} → ⟦ c ⟧ᶜ ds Γ t → ⟦ c ∷ cs ⟧₀ ds Γ t
-    there : ∀ {c cs cs′ Γ t} → ⟦ cs ⟧₀ cs′ Γ t → ⟦ c ∷ cs ⟧₀ cs′ Γ t
+    here : ∀ {c cs cs₀ Γ t} → ⟦ c ⟧ᶜ cs₀ Γ t → ⟦ c ∷ cs ⟧₀ cs₀ Γ t
+    there : ∀ {c cs cs₀ Γ t} → ⟦ cs ⟧₀ cs₀ Γ t → ⟦ c ∷ cs ⟧₀ cs₀ Γ t
 
 ⟦_⟧ : List Code → Ctx → Ty → Set
 ⟦ cs ⟧ = ⟦ cs ⟧₀ cs
+
+open import Data.Fin
+open import Data.Vec renaming (lookup to vlookup) using (fromList)
+
+con : ∀ {cs cs₀ Γ t} → (i : Fin (length cs)) → ⟦ vlookup i (fromList cs) ⟧ᶜ cs₀ Γ t → ⟦ cs ⟧₀ cs₀ Γ t
+con {[]} ()
+con {c ∷ cs} zero    = here
+con {c ∷ cs} (suc i) = there ∘ con i
 
 module Sub (cs : List Code) where
   Tm : Ctx → Ty → Set

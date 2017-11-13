@@ -30,6 +30,7 @@ STLC =
   []
 
 open LA.Sub STLC
+open import Data.Fin using (#_)
 
 -- Tm : Ctx → Ty → Set
 -- Tm = ⟦ STLC ⟧
@@ -38,47 +39,40 @@ open LA.Sub STLC
 [var] v = var v
 
 [lam] : ∀ {u Γ} t → Tm (Γ , t) u → Tm Γ (t ▷ u)
-[lam] t e = here (bind t e)
+[lam] t e = con (# 0) $ bind t e
 
 _[·]_ : ∀ {u t Γ} → Tm Γ (u ▷ t) → Tm Γ u → Tm Γ t
-_[·]_ {u} {t} f e = there ∘′ here $
-  some u (some t (node (f ∷ e ∷ [])))
+_[·]_ {u} {t} f e = con (# 1) $ some u (some t (node (f ∷ e ∷ [])))
 
 [true] : ∀ {Γ} → Tm Γ Bool
-[true] = there ∘′ there ∘′ here $
-  node []
+[true] = con (# 2) $ node []
 
 [false] : ∀ {Γ} → Tm Γ Bool
-[false] = there ∘′ there ∘′ there ∘′ here $
-  node []
+[false] = con (# 3) $ node []
 
 [if]_[then]_[else]_ : ∀ {t Γ} → Tm Γ Bool → Tm Γ t → Tm Γ t → Tm Γ t
-[if]_[then]_[else]_ {t} b thn els = there ∘′ there ∘′ there ∘′ there ∘′ here $
-  some t (node (b ∷ thn ∷ els ∷ []))
+[if]_[then]_[else]_ {t} b thn els = con (# 4) $ some t (node (b ∷ thn ∷ els ∷ []))
 
 _[,]_ : ∀ {t u Γ} → Tm Γ t → Tm Γ u → Tm Γ (t [×] u)
-_[,]_ {t} {u} e₁ e₂ = there ∘′ there ∘′ there ∘′ there ∘′ there ∘′ here $
-  some t (some u (node (e₁ ∷ e₂ ∷ [])))
+_[,]_ {t} {u} e₁ e₂ = con (# 5) $ some t (some u (node (e₁ ∷ e₂ ∷ [])))
 
 [fst] :  ∀ {t u Γ} → Tm Γ (t [×] u) → Tm Γ t
-[fst] {t} {u} e = there ∘′ there ∘′ there ∘′ there ∘′ there ∘′ there ∘′ here $
-  some t (some u (node (e ∷ [])))
+[fst] {t} {u} e = con (# 6) $ some t (some u (node (e ∷ [])))
 
 [snd] :  ∀ {t u Γ} → Tm Γ (t [×] u) → Tm Γ u
-[snd] {t} {u} e = there ∘′ there ∘′ there ∘′ there ∘′ there ∘′ there ∘′ there ∘′ here $
-  some t (some u (node (e ∷ [])))
+[snd] {t} {u} e = con (# 7) $ some t (some u (node (e ∷ [])))
 
 ID : ∀ {Γ} t → Tm Γ (t ▷ t)
-ID t = [lam] t ([var] vz)
+ID t = [lam] t $ [var] vz
 
 CONST : ∀ {Γ} t u → Tm Γ (t ▷ u ▷ t)
-CONST t u = [lam] t ([lam] u ([var] (vs vz)))
+CONST t u = [lam] t $ [lam] u $ [var] (vs vz)
 
 CONST‿ID : ∀ {Γ} t u → Tm Γ (u ▷ (t ▷ t))
 CONST‿ID t u = CONST (t ▷ t) u [·] ID t
 
 ASSOC : ∀ {Γ} t u s → Tm Γ ((t [×] (u [×] s)) ▷ ((t [×] u) [×] s))
-ASSOC t u s = [lam] _ (([fst] ([var] vz) [,] [fst] ([snd] ([var] vz))) [,] [snd] ([snd] ([var] vz)))
+ASSOC t u s = [lam] _ $ ([fst] ([var] vz) [,] [fst] ([snd] ([var] vz))) [,] [snd] ([snd] ([var] vz))
 
 open import Relation.Binary.PropositionalEquality
 open import Data.Empty
