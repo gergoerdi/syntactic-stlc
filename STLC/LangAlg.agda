@@ -162,3 +162,139 @@ subᵛ-⊢⋆⊇ σ       done v            = refl
 subᵛ-⊢⋆⊇ (σ , e) (drop Δ⊇Θ) v      rewrite subᵛ-⊢⋆⊇ σ Δ⊇Θ v = refl
 subᵛ-⊢⋆⊇ (σ , e) (keep Δ⊇Θ) vz     = refl
 subᵛ-⊢⋆⊇ (σ , e) (keep Δ⊇Θ) (vs v) rewrite subᵛ-⊢⋆⊇ σ Δ⊇Θ v = refl
+
+mutual
+  sub₀-⊢⋆⊇ : ∀ {cs′ Γ Δ Θ t} (σ : Γ ⊢⋆ Δ) (Δ⊇Θ : Δ ⊇ Θ) (e : ⟦ cs′ ⟧₀ cs Θ t) →
+    sub₀ (σ ⊢⋆⊇ Δ⊇Θ) e ≡ sub₀ σ (ren₀ Δ⊇Θ e)
+  sub₀-⊢⋆⊇ σ Δ⊇Θ (var v)   rewrite subᵛ-⊢⋆⊇ σ Δ⊇Θ v = refl
+  sub₀-⊢⋆⊇ σ Δ⊇Θ (here e)  rewrite subᶜ-⊢⋆⊇ σ Δ⊇Θ e = refl
+  sub₀-⊢⋆⊇ σ Δ⊇Θ (there e) rewrite sub₀-⊢⋆⊇ σ Δ⊇Θ e = refl
+
+  subᶜ-⊢⋆⊇ : ∀ {c Γ Δ Θ t} (σ : Γ ⊢⋆ Δ) (Δ⊇Θ : Δ ⊇ Θ) (e : ⟦ c ⟧ᶜ cs Θ t) →
+    subᶜ (σ ⊢⋆⊇ Δ⊇Θ) e ≡ subᶜ σ (renᶜ Δ⊇Θ e)
+  subᶜ-⊢⋆⊇ σ Δ⊇Θ (bind t e) rewrite assocᵣₛᵣ (wk {t}) σ Δ⊇Θ | sub₀-⊢⋆⊇ (shift σ) (keep Δ⊇Θ) e = refl
+  subᶜ-⊢⋆⊇ σ Δ⊇Θ (some u e) rewrite subᶜ-⊢⋆⊇ σ Δ⊇Θ e = refl
+  subᶜ-⊢⋆⊇ σ Δ⊇Θ (node es)  rewrite subˡ-⊢⋆⊇ σ Δ⊇Θ es = refl
+
+  subˡ-⊢⋆⊇ : ∀ {cs′ Γ Δ Θ ts} (σ : Γ ⊢⋆ Δ) (Δ⊇Θ : Δ ⊇ Θ) (es : All (⟦ cs′ ⟧₀ cs Θ) ts) →
+    subˡ (σ ⊢⋆⊇ Δ⊇Θ) es ≡ subˡ σ (renˡ Δ⊇Θ es)
+  subˡ-⊢⋆⊇ σ Δ⊇Θ []       = refl
+  subˡ-⊢⋆⊇ σ Δ⊇Θ (e ∷ es) = cong₂ _∷_ (sub₀-⊢⋆⊇ _ _ e) (subˡ-⊢⋆⊇ _ _ es)
+
+sub-⊢⋆⊇ : ∀ {Γ Δ Θ t} (σ : Γ ⊢⋆ Δ) (Δ⊇Θ : Δ ⊇ Θ) (e : Tm Θ t) →
+  sub (σ ⊢⋆⊇ Δ⊇Θ) e ≡ sub σ (ren Δ⊇Θ e)
+sub-⊢⋆⊇ = sub₀-⊢⋆⊇
+
+subᵛ-⊇⊢⋆ : ∀ {Γ Δ Θ t} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (v : Var t Θ) →
+  subᵛ (Γ⊇Δ ⊇⊢⋆ σ) v ≡ ren Γ⊇Δ (subᵛ σ v)
+subᵛ-⊇⊢⋆ Γ⊇Δ (σ , _) vz     = refl
+subᵛ-⊇⊢⋆ Γ⊇Δ (σ , _) (vs v) = subᵛ-⊇⊢⋆ Γ⊇Δ σ v
+
+mutual
+  sub₀-⊇⊢⋆ : ∀ {cs′ Γ Δ Θ t} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (e : ⟦ cs′ ⟧₀ cs Θ t) →
+    sub₀ (Γ⊇Δ ⊇⊢⋆ σ) e ≡ ren₀ Γ⊇Δ (sub₀ σ e)
+  sub₀-⊇⊢⋆ σ Δ⊇Θ (var v)   rewrite subᵛ-⊇⊢⋆ σ Δ⊇Θ v = refl
+  sub₀-⊇⊢⋆ σ Δ⊇Θ (here e)  rewrite subᶜ-⊇⊢⋆ σ Δ⊇Θ e = refl
+  sub₀-⊇⊢⋆ σ Δ⊇Θ (there e) rewrite sub₀-⊇⊢⋆ σ Δ⊇Θ e = refl
+
+  subᶜ-⊇⊢⋆ : ∀ {c Γ Δ Θ t} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (e : ⟦ c ⟧ᶜ cs Θ t) →
+    subᶜ (Γ⊇Δ ⊇⊢⋆ σ) e ≡ renᶜ Γ⊇Δ (subᶜ σ e)
+  subᶜ-⊇⊢⋆ Γ⊇Δ σ (bind t e) rewrite
+    assocᵣᵣₛ (wk {t}) Γ⊇Δ σ | refl-⊇⊇ Γ⊇Δ | sym (Γ⊇Δ ⊇⊇-refl) |
+    assocᵣᵣₛ (keep Γ⊇Δ) (wk {t}) σ | sym (assocᵣᵣₛ (keep Γ⊇Δ) (wk {t}) σ) |
+    Γ⊇Δ ⊇⊇-refl | sub₀-⊇⊢⋆ (keep Γ⊇Δ) (shift σ) e
+    = refl
+  subᶜ-⊇⊢⋆ Γ⊇Δ σ (some t e) rewrite subᶜ-⊇⊢⋆ Γ⊇Δ σ e = refl
+  subᶜ-⊇⊢⋆ Γ⊇Δ σ (node es)  rewrite subˡ-⊇⊢⋆ Γ⊇Δ σ es = refl
+
+  subˡ-⊇⊢⋆ : ∀ {cs′ Γ Δ Θ ts} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (es : All (⟦ cs′ ⟧₀ cs Θ) ts) →
+    subˡ (Γ⊇Δ ⊇⊢⋆ σ) es ≡ renˡ Γ⊇Δ (subˡ σ es)
+  subˡ-⊇⊢⋆ Γ⊇Δ σ []       = refl
+  subˡ-⊇⊢⋆ Γ⊇Δ σ (e ∷ es) = cong₂ _∷_ (sub₀-⊇⊢⋆ _ _ e) (subˡ-⊇⊢⋆ _ _ es)
+
+sub-⊇⊢⋆ : ∀ {Γ Δ Θ t} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (e : Tm Θ t) →
+  sub (Γ⊇Δ ⊇⊢⋆ σ) e ≡ ren Γ⊇Δ (sub σ e)
+sub-⊇⊢⋆ = sub₀-⊇⊢⋆
+
+assocₛᵣₛ : ∀ {Γ Δ Θ Ξ} (ρ : Θ ⊢⋆ Ξ) (Δ⊇Θ : Δ ⊇ Θ) (σ : Γ ⊢⋆ Δ) →
+  σ ⊢⊢⋆ (Δ⊇Θ ⊇⊢⋆ ρ) ≡ (σ ⊢⋆⊇ Δ⊇Θ) ⊢⊢⋆ ρ
+assocₛᵣₛ ∅       Δ⊇Θ σ = refl
+assocₛᵣₛ (ρ , e) Δ⊇Θ σ rewrite assocₛᵣₛ ρ Δ⊇Θ σ | sym (sub-⊢⋆⊇ σ Δ⊇Θ e) = refl
+
+assocᵣₛₛ :  ∀ {Γ Δ Θ Ξ} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (ρ : Θ ⊢⋆ Ξ) →
+  Γ⊇Δ ⊇⊢⋆ (σ ⊢⊢⋆ ρ) ≡ (Γ⊇Δ ⊇⊢⋆ σ) ⊢⊢⋆ ρ
+assocᵣₛₛ Γ⊇Δ σ ∅       = refl
+assocᵣₛₛ Γ⊇Δ σ (ρ , e) rewrite assocᵣₛₛ Γ⊇Δ σ ρ | sym (sub-⊇⊢⋆ Γ⊇Δ σ e) = refl
+
+subᵛ-refl : ∀ {Γ t} (v : Var t Γ) → subᵛ reflₛ v ≡ var v
+subᵛ-refl vz         = refl
+subᵛ-refl (vs {u} v) rewrite subᵛ-⊇⊢⋆ (wk {u}) reflₛ v | subᵛ-refl v | renᵛ-refl v = refl
+
+mutual
+  sub₀-refl : ∀ {cs′ Γ t} (e : ⟦ cs′ ⟧₀ cs Γ t) → sub₀ reflₛ e ≡ e
+  sub₀-refl (var v)   rewrite subᵛ-refl v = refl
+  sub₀-refl (here e)  rewrite subᶜ-refl e = refl
+  sub₀-refl (there e) rewrite sub₀-refl e = refl
+
+  subᶜ-refl : ∀ {c Γ t} (e : ⟦ c ⟧ᶜ cs Γ t) → subᶜ reflₛ e ≡ e
+  subᶜ-refl (bind t e) rewrite sub₀-refl e = refl
+  subᶜ-refl (some u e) rewrite subᶜ-refl e = refl
+  subᶜ-refl (node es)  rewrite subˡ-refl es = refl
+
+  subˡ-refl : ∀ {cs′ Γ ts} (es : All (⟦ cs′ ⟧₀ cs Γ) ts) → subˡ reflₛ es ≡ es
+  subˡ-refl []      = refl
+  subˡ-refl (_ ∷ _) = cong₂ _∷_ (sub₀-refl _) (subˡ-refl _)
+
+sub-refl : ∀ {Γ t} (e : Tm Γ t) → sub reflₛ e ≡ e
+sub-refl = sub₀-refl
+
+subᵛ-⊢⊢⋆  : ∀ {Γ Δ Θ t} (σ : Γ ⊢⋆ Θ) (ρ : Θ ⊢⋆ Δ) (v : Var t Δ) →
+  subᵛ (σ ⊢⊢⋆ ρ) v ≡ sub σ (subᵛ ρ v)
+subᵛ-⊢⊢⋆ σ (ρ , _) vz     = refl
+subᵛ-⊢⊢⋆ σ (ρ , _) (vs v) = subᵛ-⊢⊢⋆ σ ρ v
+
+mutual
+  sub₀-⊢⊢⋆ : ∀ {cs′ Γ Δ Θ t} (σ : Γ ⊢⋆ Θ) (ρ : Θ ⊢⋆ Δ) (e : ⟦ cs′ ⟧₀ cs Δ t) →
+    sub₀ (σ ⊢⊢⋆ ρ) e ≡ sub₀ σ (sub₀ ρ e)
+  sub₀-⊢⊢⋆ σ ρ (var v)   rewrite subᵛ-⊢⊢⋆ σ ρ v = refl
+  sub₀-⊢⊢⋆ σ ρ (here e)  rewrite subᶜ-⊢⊢⋆ σ ρ e = refl
+  sub₀-⊢⊢⋆ σ ρ (there e) rewrite sub₀-⊢⊢⋆ σ ρ e = refl
+
+  subᶜ-⊢⊢⋆ : ∀ {c Γ Δ Θ t} (σ : Γ ⊢⋆ Θ) (ρ : Θ ⊢⋆ Δ) (e : ⟦ c ⟧ᶜ cs Δ t) →
+    subᶜ (σ ⊢⊢⋆ ρ) e ≡ subᶜ σ (subᶜ ρ e)
+  subᶜ-⊢⊢⋆ σ ρ (bind t e) rewrite
+    assocᵣₛₛ (wk {t}) σ ρ | sym (cong (_⊢⊢⋆ ρ) ((wk {t} ⊇⊢⋆ σ) ⊢⋆⊇-refl)) |
+    sym (assocₛᵣₛ ρ (wk {t}) (shift σ)) | sub₀-⊢⊢⋆ (shift σ) (shift ρ) e
+    = refl
+  subᶜ-⊢⊢⋆ σ ρ (some t e) rewrite subᶜ-⊢⊢⋆ σ ρ e = refl
+  subᶜ-⊢⊢⋆ σ ρ (node es)  rewrite subˡ-⊢⊢⋆ σ ρ es = refl
+
+  -- -- Is this version clearer?
+  -- subᶜ-⊢⊢⋆ σ ρ (bind t e) = cong (bind t) $
+  --     cong (λ x → sub₀ (x , var vz) e)
+  --         (assocᵣₛₛ (wk {t}) σ ρ
+  --       ⟨ trans ⟩
+  --         cong (_⊢⊢⋆ ρ) (sym ((wk {t} ⊇⊢⋆ σ) ⊢⋆⊇-refl))
+  --       ⟨ trans ⟩
+  --         sym (assocₛᵣₛ ρ (wk {t}) (shift σ)))
+  --   ⟨ trans ⟩
+  --     sub₀-⊢⊢⋆ (shift σ) (shift ρ) e
+  --   where
+  --     open import Function using (_⟨_⟩_; _$_)
+
+  subˡ-⊢⊢⋆ : ∀ {cs′ Γ Δ Θ ts} (σ : Γ ⊢⋆ Θ) (ρ : Θ ⊢⋆ Δ) (es : All (⟦ cs′ ⟧₀ cs Δ) ts) →
+    subˡ (σ ⊢⊢⋆ ρ) es ≡ subˡ σ (subˡ ρ es)
+  subˡ-⊢⊢⋆ σ ρ []       = refl
+  subˡ-⊢⊢⋆ σ ρ (e ∷ es) rewrite sub₀-⊢⊢⋆ σ ρ e | subˡ-⊢⊢⋆ σ ρ es = refl
+
+sub-⊢⊢⋆ : ∀ {Γ Δ Θ t} (σ : Γ ⊢⋆ Θ) (ρ : Θ ⊢⋆ Δ) (e : Tm Δ t) →
+  sub (σ ⊢⊢⋆ ρ) e ≡ sub σ (sub ρ e)
+sub-⊢⊢⋆ = sub₀-⊢⊢⋆
+
+refl-⊢⊢⋆_ : ∀ {Γ Δ} (σ : Γ ⊢⋆ Δ) → reflₛ ⊢⊢⋆ σ ≡ σ
+refl-⊢⊢⋆ ∅       = refl
+refl-⊢⊢⋆ (σ , e) rewrite refl-⊢⊢⋆ σ | sub-refl e = refl
+
+_⊢⊢⋆-refl : ∀ {Γ Δ} (σ : Γ ⊢⋆ Δ) → σ ⊢⊢⋆ reflₛ ≡ σ
+∅       ⊢⊢⋆-refl = refl
+(σ , e) ⊢⊢⋆-refl rewrite assocₛᵣₛ reflₛ wk (σ , e) | σ ⊢⋆⊇-refl | σ ⊢⊢⋆-refl = refl
