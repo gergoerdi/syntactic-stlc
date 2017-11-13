@@ -1,180 +1,131 @@
-module LangAlg (Ty : Set) where
-
 open import Data.List
-open import Data.List.All
-open import Data.Unit
+import LangAlg.Base
 
-open import Ctx Ty public
+module LangAlg {Ty : Set} (cs : let open LangAlg.Base Ty in List Code) where
+
+open LangAlg.Base Ty public
 open import Ren Ty
+open import Data.List.All
 
-open import Data.Product
-open import Data.Sum
-open import Data.Empty
-open import Function using (_∘_)
-
-data Code : Set₁ where
-  bind : (Ty → Ty → Ty → Set) → Code
-  some : (Ty → Code) → Code
-  node : List Ty → (Ty → Set) → Code
+Tm : Ctx → Ty → Set
+Tm = ⟦ cs ⟧
 
 mutual
-  data ⟦_⟧ᶜ : Code → List Code → Ctx → Ty → Set where
-    bind : ∀ {cs Γ t₀ wt} t {u} → ⟦ cs ⟧₀ cs (Γ , t) u → {{_ : wt t u t₀}} → ⟦ bind wt ⟧ᶜ cs Γ t₀
-    some : ∀ {cs Γ t c} u → ⟦ c u ⟧ᶜ cs Γ t → ⟦ some c ⟧ᶜ cs Γ t
-    node : ∀ {cs Γ t ts wt} → All (⟦ cs ⟧₀ cs Γ) ts → {{_ : wt t}} → ⟦ node ts wt ⟧ᶜ cs Γ t
+  ren₀ : ∀ {cs′ Γ Δ t} → Γ ⊇ Δ → ⟦ cs′ ⟧₀ cs Δ t → ⟦ cs′ ⟧₀ cs Γ t
+  ren₀ Γ⊇Δ (var v) = var (renᵛ Γ⊇Δ v)
+  ren₀ Γ⊇Δ (here e)  = here (renᶜ Γ⊇Δ  e)
+  ren₀ Γ⊇Δ (there e) = there (ren₀ Γ⊇Δ e)
 
-  data ⟦_⟧₀ : List Code → List Code → Ctx → Ty → Set where
-    var : ∀ {cs Γ t} → Var t Γ → ⟦ cs ⟧₀ cs Γ t
-    here : ∀ {c cs cs₀ Γ t} → ⟦ c ⟧ᶜ cs₀ Γ t → ⟦ c ∷ cs ⟧₀ cs₀ Γ t
-    there : ∀ {c cs cs₀ Γ t} → ⟦ cs ⟧₀ cs₀ Γ t → ⟦ c ∷ cs ⟧₀ cs₀ Γ t
+  renᶜ : ∀ {c Γ Δ t} → Γ ⊇ Δ → ⟦ c ⟧ᶜ cs Δ t → ⟦ c ⟧ᶜ cs Γ t
+  renᶜ {bind wt} Γ⊇Δ (bind t e) = bind t (ren₀ (keep Γ⊇Δ) e)
+  renᶜ {node ts wt} {Γ} {Δ} {t} Γ⊇Δ (node es) = node (renˡ Γ⊇Δ es)
+  renᶜ {some k} Γ⊇Δ (some t e) = some t (renᶜ Γ⊇Δ e)
 
-⟦_⟧ : List Code → Ctx → Ty → Set
-⟦ cs ⟧ = ⟦ cs ⟧₀ cs
+  renˡ : ∀ {cs′ Γ Δ ts} → Γ ⊇ Δ → All (⟦ cs′ ⟧₀ cs Δ) ts → All (⟦ cs′ ⟧₀ cs Γ) ts
+  renˡ Γ⊇Δ [] = []
+  renˡ Γ⊇Δ (e ∷ es) = ren₀ Γ⊇Δ e ∷ renˡ Γ⊇Δ es
 
-open import Data.Fin
-open import Data.Vec renaming (lookup to vlookup) using (fromList)
+ren : ∀ {Γ Δ t} → Γ ⊇ Δ → Tm Δ t → Tm Γ t
+ren = ren₀
 
-con : ∀ {cs cs₀ Γ t} → (i : Fin (length cs)) → ⟦ vlookup i (fromList cs) ⟧ᶜ cs₀ Γ t → ⟦ cs ⟧₀ cs₀ Γ t
-con {[]} ()
-con {c ∷ cs} zero    = here
-con {c ∷ cs} (suc i) = there ∘ con i
+infixr 4 _,_
+infix 3 _⊢⋆_
+data _⊢⋆_ (Γ : Ctx) : Ctx → Set where
+  ∅ : Γ ⊢⋆ ∅
+  _,_ : ∀ {t Δ} → (σ : Γ ⊢⋆ Δ) → (e : Tm Γ t) → Γ ⊢⋆ Δ , t
 
-module Sub (cs : List Code) where
-  Tm : Ctx → Ty → Set
-  Tm = ⟦ cs ⟧
+infixr 20 _⊇⊢⋆_
+_⊇⊢⋆_ : ∀ {Γ Δ Θ} → Θ ⊇ Γ → Γ ⊢⋆ Δ → Θ ⊢⋆ Δ
+Θ⊇Γ ⊇⊢⋆ ∅       = ∅
+Θ⊇Γ ⊇⊢⋆ (σ , e) = Θ⊇Γ ⊇⊢⋆ σ , ren Θ⊇Γ e
 
-  mutual
-    ren₀ : ∀ {cs′ Γ Δ t} → Γ ⊇ Δ → ⟦ cs′ ⟧₀ cs Δ t → ⟦ cs′ ⟧₀ cs Γ t
-    ren₀ Γ⊇Δ (var v) = var (renᵛ Γ⊇Δ v)
-    ren₀ Γ⊇Δ (here e)  = here (renᶜ Γ⊇Δ  e)
-    ren₀ Γ⊇Δ (there e) = there (ren₀ Γ⊇Δ e)
+infixl 20 _⊢⋆⊇_
+_⊢⋆⊇_ : ∀ {Γ Δ Θ} → Γ ⊢⋆ Δ → Δ ⊇ Θ → Γ ⊢⋆ Θ
+σ       ⊢⋆⊇ done       = σ
+(σ , e) ⊢⋆⊇ (drop Δ⊇Θ) = σ ⊢⋆⊇ Δ⊇Θ
+(σ , e) ⊢⋆⊇ (keep Δ⊇Θ) = σ ⊢⋆⊇ Δ⊇Θ , e
 
-    renᶜ : ∀ {c Γ Δ t} → Γ ⊇ Δ → ⟦ c ⟧ᶜ cs Δ t → ⟦ c ⟧ᶜ cs Γ t
-    renᶜ {bind wt} Γ⊇Δ (bind t e) = bind t (ren₀ (keep Γ⊇Δ) e)
-    renᶜ {node ts wt} {Γ} {Δ} {t} Γ⊇Δ (node es) = node (renˡ Γ⊇Δ es)
-    renᶜ {some k} Γ⊇Δ (some t e) = some t (renᶜ Γ⊇Δ e)
+wkₛ : ∀ {t Γ Δ} → Γ ⊢⋆ Δ → Γ , t ⊢⋆ Δ
+wkₛ σ = wk ⊇⊢⋆ σ
 
-    renˡ : ∀ {cs′ Γ Δ ts} → Γ ⊇ Δ → All (⟦ cs′ ⟧₀ cs Δ) ts → All (⟦ cs′ ⟧₀ cs Γ) ts
-    renˡ Γ⊇Δ [] = []
-    renˡ Γ⊇Δ (e ∷ es) = ren₀ Γ⊇Δ e ∷ renˡ Γ⊇Δ es
+subᵛ : ∀ {Γ Δ t} → Γ ⊢⋆ Δ → Var t Δ → Tm Γ t
+subᵛ (σ , e) vz     = e
+subᵛ (σ , e) (vs v) = subᵛ σ v
 
-  ren : ∀ {Γ Δ t} → Γ ⊇ Δ → Tm Δ t → Tm Γ t
-  ren = ren₀
+shift : ∀ {t Γ Δ} → Γ ⊢⋆ Δ → Γ , t ⊢⋆ Δ , t
+shift {t} σ = wk ⊇⊢⋆ σ , var vz
 
-  infixr 4 _,_
-  infix 3 _⊢⋆_
-  data _⊢⋆_ (Γ : Ctx) : Ctx → Set where
-    ∅ : Γ ⊢⋆ ∅
-    _,_ : ∀ {t Δ} → (σ : Γ ⊢⋆ Δ) → (e : Tm Γ t) → Γ ⊢⋆ Δ , t
+ren⇒sub : ∀ {Γ Δ} → Γ ⊇ Δ → Γ ⊢⋆ Δ
+ren⇒sub done       = ∅
+ren⇒sub (drop Γ⊇Δ) = wk ⊇⊢⋆ (ren⇒sub Γ⊇Δ)
+ren⇒sub (keep Γ⊇Δ) = shift (ren⇒sub Γ⊇Δ)
 
-  infixr 20 _⊇⊢⋆_
-  _⊇⊢⋆_ : ∀ {Γ Δ Θ} → Θ ⊇ Γ → Γ ⊢⋆ Δ → Θ ⊢⋆ Δ
-  Θ⊇Γ ⊇⊢⋆ ∅       = ∅
-  Θ⊇Γ ⊇⊢⋆ (σ , e) = Θ⊇Γ ⊇⊢⋆ σ , ren Θ⊇Γ e
+reflₛ : ∀ {Γ} → Γ ⊢⋆ Γ
+reflₛ {∅}     = ∅
+reflₛ {Γ , t} = shift reflₛ
 
-  infixl 20 _⊢⋆⊇_
-  _⊢⋆⊇_ : ∀ {Γ Δ Θ} → Γ ⊢⋆ Δ → Δ ⊇ Θ → Γ ⊢⋆ Θ
-  σ       ⊢⋆⊇ done       = σ
-  (σ , e) ⊢⋆⊇ (drop Δ⊇Θ) = σ ⊢⋆⊇ Δ⊇Θ
-  (σ , e) ⊢⋆⊇ (keep Δ⊇Θ) = σ ⊢⋆⊇ Δ⊇Θ , e
+mutual
+  subᶜ : ∀ {c Γ Δ t} → Γ ⊢⋆ Δ → ⟦ c ⟧ᶜ cs Δ t → ⟦ c ⟧ᶜ cs Γ t
 
-  wkₛ : ∀ {t Γ Δ} → Γ ⊢⋆ Δ → Γ , t ⊢⋆ Δ
-  wkₛ σ = wk ⊇⊢⋆ σ
+  sub₀ : ∀ {cs′ Γ Δ t} → Γ ⊢⋆ Δ → ⟦ cs′ ⟧₀ cs Δ t → ⟦ cs′ ⟧₀ cs Γ t
+  sub₀ σ (var v) = subᵛ σ v
+  sub₀ σ (here e)  = here (subᶜ σ  e)
+  sub₀ σ (there e) = there (sub₀ σ e)
 
-  subᵛ : ∀ {Γ Δ t} → Γ ⊢⋆ Δ → Var t Δ → Tm Γ t
-  subᵛ (σ , e) vz     = e
-  subᵛ (σ , e) (vs v) = subᵛ σ v
+  subᶜ {bind wt} σ (bind t e) = bind t (sub₀ (shift σ) e)
+  subᶜ {node ts wt} {Γ} {Δ} {t} σ (node es) = node (subˡ σ es)
+  subᶜ {some k} σ (some t e) = some t (subᶜ σ e)
 
-  shift : ∀ {t Γ Δ} → Γ ⊢⋆ Δ → Γ , t ⊢⋆ Δ , t
-  shift {t} σ = wk ⊇⊢⋆ σ , var vz
+  subˡ : ∀ {cs′ Γ Δ ts} → Γ ⊢⋆ Δ → All (⟦ cs′ ⟧₀ cs Δ) ts → All (⟦ cs′ ⟧₀ cs Γ) ts
+  subˡ σ [] = []
+  subˡ σ (e ∷ es) = sub₀ σ e ∷ subˡ σ es
 
-  ren⇒sub : ∀ {Γ Δ} → Γ ⊇ Δ → Γ ⊢⋆ Δ
-  ren⇒sub done       = ∅
-  ren⇒sub (drop Γ⊇Δ) = wk ⊇⊢⋆ (ren⇒sub Γ⊇Δ)
-  ren⇒sub (keep Γ⊇Δ) = shift (ren⇒sub Γ⊇Δ)
+sub : ∀ {Γ Δ t} → Γ ⊢⋆ Δ → Tm Δ t → Tm Γ t
+sub = sub₀
 
-  reflₛ : ∀ {Γ} → Γ ⊢⋆ Γ
-  reflₛ {∅}     = ∅
-  reflₛ {Γ , t} = shift reflₛ
+_⊢⊢⋆_ : ∀ {Γ Δ Θ} → Γ ⊢⋆ Θ → Θ ⊢⋆ Δ → Γ ⊢⋆ Δ
+σ ⊢⊢⋆ ∅ = ∅
+σ ⊢⊢⋆ (ρ , e) = (σ ⊢⊢⋆ ρ) , sub σ e
 
-  mutual
-    subᶜ : ∀ {c Γ Δ t} → Γ ⊢⋆ Δ → ⟦ c ⟧ᶜ cs Δ t → ⟦ c ⟧ᶜ cs Γ t
+open import Relation.Binary.PropositionalEquality
+open import Ren.Properties Ty
 
-    sub₀ : ∀ {cs′ Γ Δ t} → Γ ⊢⋆ Δ → ⟦ cs′ ⟧₀ cs Δ t → ⟦ cs′ ⟧₀ cs Γ t
-    sub₀ σ (var v) = subᵛ σ v
-    sub₀ σ (here e)  = here (subᶜ σ  e)
-    sub₀ σ (there e) = there (sub₀ σ e)
+mutual
+  ren₀-refl : ∀ {cs′ Γ t} → (e : ⟦ cs′ ⟧₀ cs Γ t) → ren₀ reflᵣ e ≡ e
+  ren₀-refl (var v)   rewrite renᵛ-refl v = refl
+  ren₀-refl (here e)  rewrite renᶜ-refl e = refl
+  ren₀-refl (there e) rewrite ren₀-refl e = refl
 
-    subᶜ {bind wt} σ (bind t e) = bind t (sub₀ (shift σ) e)
-    subᶜ {node ts wt} {Γ} {Δ} {t} σ (node es) = node (subˡ σ es)
-    subᶜ {some k} σ (some t e) = some t (subᶜ σ e)
+  renᶜ-refl : ∀ {c Γ t} → (e : ⟦ c ⟧ᶜ cs Γ t) → renᶜ reflᵣ e ≡ e
+  renᶜ-refl (bind t e) rewrite ren₀-refl e = refl
+  renᶜ-refl (some t e) rewrite renᶜ-refl e = refl
+  renᶜ-refl (node es)  rewrite renˡ-refl es = refl
 
-    subˡ : ∀ {cs′ Γ Δ ts} → Γ ⊢⋆ Δ → All (⟦ cs′ ⟧₀ cs Δ) ts → All (⟦ cs′ ⟧₀ cs Γ) ts
-    subˡ σ [] = []
-    subˡ σ (e ∷ es) = sub₀ σ e ∷ subˡ σ es
+  renˡ-refl : ∀ {cs′ Γ ts} → (es : All (⟦ cs′ ⟧₀ cs Γ) ts) → renˡ reflᵣ es ≡ es
+  renˡ-refl []       = refl
+  renˡ-refl (e ∷ es) = cong₂ _∷_ (ren₀-refl e) (renˡ-refl es)
 
-  sub : ∀ {Γ Δ t} → Γ ⊢⋆ Δ → Tm Δ t → Tm Γ t
-  sub = sub₀
+ren-refl : ∀ {Γ t} (e : Tm Γ t) → ren reflᵣ e ≡ e
+ren-refl = ren₀-refl
 
-  _⊢⊢⋆_ : ∀ {Γ Δ Θ} → Γ ⊢⋆ Θ → Θ ⊢⋆ Δ → Γ ⊢⋆ Δ
-  σ ⊢⊢⋆ ∅ = ∅
-  σ ⊢⊢⋆ (ρ , e) = (σ ⊢⊢⋆ ρ) , sub σ e
+mutual
+  ren₀-⊇⊇ : ∀ {cs′ Γ Θ Δ t} (Γ⊇Θ : Γ ⊇ Θ) (Θ⊇Δ : Θ ⊇ Δ) (e : ⟦ cs′ ⟧₀ cs Δ t) →
+    ren₀ Γ⊇Θ (ren₀ Θ⊇Δ e) ≡ ren₀ (Γ⊇Θ ⊇⊇ Θ⊇Δ) e
+  ren₀-⊇⊇ Γ⊇Θ Θ⊇Δ (var v)   rewrite renᵛ-⊇⊇ Γ⊇Θ Θ⊇Δ v = refl
+  ren₀-⊇⊇ Γ⊇Θ Θ⊇Δ (here e)  rewrite renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ e = refl
+  ren₀-⊇⊇ Γ⊇Θ Θ⊇Δ (there e) rewrite ren₀-⊇⊇ Γ⊇Θ Θ⊇Δ e = refl
 
-  open import Relation.Binary.PropositionalEquality
-  open import Ren.Properties Ty
+  renᶜ-⊇⊇ : ∀ {c Γ Θ Δ t} (Γ⊇Θ : Γ ⊇ Θ) (Θ⊇Δ : Θ ⊇ Δ) (e : ⟦ c ⟧ᶜ cs Δ t) →
+    renᶜ Γ⊇Θ (renᶜ Θ⊇Δ e) ≡ renᶜ (Γ⊇Θ ⊇⊇ Θ⊇Δ) e
+  renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ (bind t e) rewrite ren₀-⊇⊇ (keep Γ⊇Θ) (keep Θ⊇Δ) e = refl
+  renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ (some t e) rewrite renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ e = refl
+  renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ (node ts)  rewrite renˡ-⊇⊇ Γ⊇Θ Θ⊇Δ ts = refl
 
-  mutual
-    ren₀-refl : ∀ {cs′ Γ t} → (e : ⟦ cs′ ⟧₀ cs Γ t) → ren₀ reflᵣ e ≡ e
-    ren₀-refl (var v)   rewrite renᵛ-refl v = refl
-    ren₀-refl (here e)  rewrite renᶜ-refl e = refl
-    ren₀-refl (there e) rewrite ren₀-refl e = refl
+  renˡ-⊇⊇ : ∀ {cs′ Γ Θ Δ ts} (Γ⊇Θ : Γ ⊇ Θ) (Θ⊇Δ : Θ ⊇ Δ) (es : All (⟦ cs′ ⟧₀ cs Δ) ts) →
+    renˡ Γ⊇Θ (renˡ Θ⊇Δ es) ≡ renˡ (Γ⊇Θ ⊇⊇ Θ⊇Δ) es
+  renˡ-⊇⊇ Γ⊇Θ Θ⊇Δ [] = refl
+  renˡ-⊇⊇ Γ⊇Θ Θ⊇Δ (e ∷ es) = cong₂ _∷_ (ren₀-⊇⊇ _ _ e) (renˡ-⊇⊇ _ _ es)
 
-    renᶜ-refl : ∀ {c Γ t} → (e : ⟦ c ⟧ᶜ cs Γ t) → renᶜ reflᵣ e ≡ e
-    renᶜ-refl (bind t e) rewrite ren₀-refl e = refl
-    renᶜ-refl (some t e) rewrite renᶜ-refl e = refl
-    renᶜ-refl (node es)  rewrite renˡ-refl es = refl
-
-    renˡ-refl : ∀ {cs′ Γ ts} → (es : All (⟦ cs′ ⟧₀ cs Γ) ts) → renˡ reflᵣ es ≡ es
-    renˡ-refl []       = refl
-    renˡ-refl (e ∷ es) = cong₂ _∷_ (ren₀-refl e) (renˡ-refl es)
-
-  ren-refl : ∀ {Γ t} (e : Tm Γ t) → ren reflᵣ e ≡ e
-  ren-refl = ren₀-refl
-
-  mutual
-    ren₀-⊇⊇ : ∀ {cs′ Γ Θ Δ t} (Γ⊇Θ : Γ ⊇ Θ) (Θ⊇Δ : Θ ⊇ Δ) (e : ⟦ cs′ ⟧₀ cs Δ t) →
-      ren₀ Γ⊇Θ (ren₀ Θ⊇Δ e) ≡ ren₀ (Γ⊇Θ ⊇⊇ Θ⊇Δ) e
-    ren₀-⊇⊇ Γ⊇Θ Θ⊇Δ (var v)   rewrite renᵛ-⊇⊇ Γ⊇Θ Θ⊇Δ v = refl
-    ren₀-⊇⊇ Γ⊇Θ Θ⊇Δ (here e)  rewrite renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ e = refl
-    ren₀-⊇⊇ Γ⊇Θ Θ⊇Δ (there e) rewrite ren₀-⊇⊇ Γ⊇Θ Θ⊇Δ e = refl
-
-    renᶜ-⊇⊇ : ∀ {c Γ Θ Δ t} (Γ⊇Θ : Γ ⊇ Θ) (Θ⊇Δ : Θ ⊇ Δ) (e : ⟦ c ⟧ᶜ cs Δ t) →
-      renᶜ Γ⊇Θ (renᶜ Θ⊇Δ e) ≡ renᶜ (Γ⊇Θ ⊇⊇ Θ⊇Δ) e
-    renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ (bind t e) rewrite ren₀-⊇⊇ (keep Γ⊇Θ) (keep Θ⊇Δ) e = refl
-    renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ (some t e) rewrite renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ e = refl
-    renᶜ-⊇⊇ Γ⊇Θ Θ⊇Δ (node ts)  rewrite renˡ-⊇⊇ Γ⊇Θ Θ⊇Δ ts = refl
-
-    renˡ-⊇⊇ : ∀ {cs′ Γ Θ Δ ts} (Γ⊇Θ : Γ ⊇ Θ) (Θ⊇Δ : Θ ⊇ Δ) (es : All (⟦ cs′ ⟧₀ cs Δ) ts) →
-      renˡ Γ⊇Θ (renˡ Θ⊇Δ es) ≡ renˡ (Γ⊇Θ ⊇⊇ Θ⊇Δ) es
-    renˡ-⊇⊇ Γ⊇Θ Θ⊇Δ [] = refl
-    renˡ-⊇⊇ Γ⊇Θ Θ⊇Δ (e ∷ es) = cong₂ _∷_ (ren₀-⊇⊇ _ _ e) (renˡ-⊇⊇ _ _ es)
-
-  ren-⊇⊇ : ∀ {Γ Θ Δ t} (Γ⊇Θ : Γ ⊇ Θ) (Θ⊇Δ : Θ ⊇ Δ) (e : Tm Δ t) →
-    ren Γ⊇Θ (ren Θ⊇Δ e) ≡ ren (Γ⊇Θ ⊇⊇ Θ⊇Δ) e
-  ren-⊇⊇ = ren₀-⊇⊇
-
-  -- assocᵣᵣₛ : ∀ {Γ Δ Θ Ξ} (Γ⊇Δ : Γ ⊇ Δ) (Δ⊇Θ : Δ ⊇ Θ) (σ : Θ ⊢⋆ Ξ) →
-  --   Γ⊇Δ ⊇⊢⋆ (Δ⊇Θ ⊇⊢⋆ σ) ≡ (Γ⊇Δ ⊇⊇ Δ⊇Θ) ⊇⊢⋆ σ
-  -- assocᵣᵣₛ Γ⊇Δ Δ⊇Θ ∅ = refl
-  -- assocᵣᵣₛ Γ⊇Δ Δ⊇Θ (σ , e) rewrite assocᵣᵣₛ Γ⊇Δ Δ⊇Θ σ | ren-⊇⊇ Γ⊇Δ Δ⊇Θ e = refl
-
-  -- assocᵣₛᵣ : ∀ {Γ Δ Θ Ξ} (Γ⊇Δ : Γ ⊇ Δ) (σ : Δ ⊢⋆ Θ) (Θ⊇Ξ : Θ ⊇ Ξ) →
-  --   Γ⊇Δ ⊇⊢⋆ (σ ⊢⋆⊇ Θ⊇Ξ) ≡  (Γ⊇Δ ⊇⊢⋆ σ) ⊢⋆⊇ Θ⊇Ξ
-  -- assocᵣₛᵣ Γ⊇Δ σ       done       = refl
-  -- assocᵣₛᵣ Γ⊇Δ (σ , e) (drop Θ⊇Ξ) rewrite assocᵣₛᵣ Γ⊇Δ σ Θ⊇Ξ = refl
-  -- assocᵣₛᵣ Γ⊇Δ (σ , e) (keep Θ⊇Ξ) rewrite assocᵣₛᵣ Γ⊇Δ σ Θ⊇Ξ = refl
-
-  -- refl-⊇⊢⋆_ : ∀ {Γ Δ} (σ : Γ ⊢⋆ Δ) →
-  --   reflᵣ ⊇⊢⋆ σ ≡ σ
-  -- refl-⊇⊢⋆ ∅       = refl
-  -- refl-⊇⊢⋆ (σ , e) rewrite refl-⊇⊢⋆ σ | ren-refl e = refl
+ren-⊇⊇ : ∀ {Γ Θ Δ t} (Γ⊇Θ : Γ ⊇ Θ) (Θ⊇Δ : Θ ⊇ Δ) (e : Tm Δ t) →
+  ren Γ⊇Θ (ren Θ⊇Δ e) ≡ ren (Γ⊇Θ ⊇⊇ Θ⊇Δ) e
+ren-⊇⊇ = ren₀-⊇⊇
