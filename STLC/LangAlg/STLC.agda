@@ -29,13 +29,14 @@ STLC =
   []
 
 open import LangAlg STLC
+open import Ren Ty
 open import Data.Fin using (#_)
 
 -- Tm : Ctx → Ty → Set
 -- Tm = ⟦ STLC ⟧
 
 [var] : ∀ {t Γ} → Var t Γ → Tm Γ t
-[var] v = var v
+[var] = var
 
 [lam] : ∀ {u Γ} t → Tm (Γ , t) u → Tm Γ (t ▷ u)
 [lam] t e = con (# 0) $ bind t e
@@ -133,3 +134,108 @@ Halts e = ∃ λ e′ → e ==>* e′ × Value e′
 
 value⇒halts : ∀ {Γ t e} → Value {Γ} {t} e → Halts e
 value⇒halts {e = e} v = e , ε , v
+
+-- -- This would not be strictly positive!
+-- data Saturated : ∀ {Γ t} → Tm Γ t → Set where
+--   fun : ∀ {t u} {f : Tm ∅ (t ▷ u)} → Halts f → (∀ {e} → Saturated e → Saturated (f · e)) → Saturated f
+
+mutual
+  Saturated : ∀ {t} → Tm ∅ t → Set
+  Saturated e = Halts e × Saturated′ _ e
+
+  Saturated′ : ∀ t → Tm ∅ t → Set
+  Saturated′ ∙ _ = ⊥
+  Saturated′ (t ▷ u) f = ∀ {e} → Saturated e → Saturated (f [·] e)
+  Saturated′ Bool _ = ⊤
+  Saturated′ (t [×] u) e = ⊥ -- TODO
+
+saturated⇒halts : ∀ {t e} → Saturated {t} e → Halts e
+saturated⇒halts = proj₁
+
+step‿preserves‿halting : ∀ {Γ t} {e e′ : Tm Γ t} → e ==> e′ → Halts e ⇔ Halts e′
+step‿preserves‿halting {e = e} {e′ = e′} step = equivalence fwd bwd
+  where
+    fwd : Halts e → Halts e′
+    fwd (e″ , ε , v) = ⊥-elim (value⇒normal v (, step ))
+    fwd (e″ , s ◅ steps , v) rewrite deterministic step s = e″ , steps , v
+
+    bwd : Halts e′ → Halts e
+    bwd (e″ , steps , v) = e″ , step ◅ steps , v
+
+step‿preserves‿saturated : ∀ {t} {e e′ : Tm _ t} → e ==> e′ → Saturated e ⇔ Saturated e′
+step‿preserves‿saturated step = equivalence (fwd step) (bwd step)
+  where
+    fwd : ∀ {t} {e e′ : Tm _ t} → e ==> e′ → Saturated e → Saturated e′
+    fwd {∙}       step (halts , ())
+    fwd {u ▷ t}   step (halts , sat) = Equivalence.to (step‿preserves‿halting step) ⟨$⟩ halts , λ e → fwd (appˡ step _) (sat e)
+    fwd {Bool}    step (halts , _) = Equivalence.to (step‿preserves‿halting step) ⟨$⟩ halts , _
+    fwd {t [×] u} step (halts , ()) -- TODO
+
+    bwd : ∀ {t} {e e′ : Tm _ t} → e ==> e′ → Saturated e′ → Saturated e
+    bwd {∙}       step (halts , ())
+    bwd {u ▷ t}   step (halts , sat) = Equivalence.from (step‿preserves‿halting step) ⟨$⟩ halts , λ e → bwd (appˡ step _) (sat e)
+    bwd {Bool}    step (halts , _) =  Equivalence.from (step‿preserves‿halting step) ⟨$⟩ halts , _
+    bwd {t [×] u} step (halts , ()) -- TODO
+
+step*‿preserves‿saturated : ∀ {t} {e e′ : Tm _ t} → e ==>* e′ → Saturated e ⇔ Saturated e′
+step*‿preserves‿saturated ε = id
+step*‿preserves‿saturated (step ◅ steps) = step*‿preserves‿saturated steps ∘ step‿preserves‿saturated step
+
+data Instantiation : ∀ {Γ} → ∅ ⊢⋆ Γ → Set where
+  ∅ : Instantiation ∅
+  _,_ : ∀ {Γ t σ} → Instantiation {Γ} σ → ∀ {e} → Value {_} {t} e × Saturated e → Instantiation (σ , e)
+
+saturateᵛ : ∀ {Γ σ} → Instantiation σ → ∀ {t} (x : Var t Γ) → Saturated (subᵛ σ x)
+saturateᵛ (_ , (_ , sat)) vz = sat
+saturateᵛ (env , _) (vs x) = saturateᵛ env x
+
+app-lam* : ∀ {Γ t} {e e′ : Tm Γ t} → e ==>* e′ → Value e′ → ∀ {u} (f : Tm _ u) → ([lam] t f [·] e) ==>* sub (reflₛ , e′) f
+app-lam* steps v f = gmap _ (appʳ (lam _ _)) steps  ◅◅ app-lam f v ◅ ε
+
+if-cond* : ∀ {Γ t} {b b′ : Tm Γ _} → b ==>* b′ → ∀ (thn els : Tm Γ t) →
+  ([if] b [then] thn [else] els) ==>* ([if] b′ [then] thn [else] els)
+if-cond* steps thn els = gmap _ (λ step → if-cond step thn els) steps
+
+-- What is a good name for this?
+-- It basically states that you can push in outer arguments before the innermost one.
+-- Should this be called some kind of constant propagation?
+innermost‿last : ∀ {Γ u} (σ : ∅ ⊢⋆ Γ) (e′ : Tm ∅ u) →
+  (∅ , e′) ⊢⊢⋆ (wk ⊇⊢⋆ σ) ≡ σ
+innermost‿last ∅       e′ = refl
+innermost‿last (σ , e) e′ rewrite innermost‿last σ e′ | sym (sub-⊢⋆⊇ (∅ , e′) wk e) | sub-refl e = refl
+
+-- saturate : ∀ {Γ σ} → Instantiation σ → ∀ {t} → (e : Tm Γ t) → Saturated (sub σ e)
+-- saturate         env          (var v)                  = saturateᵛ env v
+-- saturate         env          (f · e)                  with saturate env f | saturate env e
+-- saturate         env          (f · e) | _ , sat-f | sat-e = sat-f sat-e
+-- saturate         env          true                     = (true , ε , true) , _
+-- saturate         env          false                    = (false , ε , false) , _
+-- saturate         env          (if b then thn else els) with saturate env b
+-- saturate {Γ} {σ} env (if b then thn else els) | (_ , b-steps , true) , _ =
+--   Equivalence.from (step*‿preserves‿saturated (if-cond* b-steps _ _ ◅◅ (if-true _ _ ◅ ε))) ⟨$⟩ saturate env thn
+-- saturate         env (if b then thn else els) | (_ , b-steps , false) , _ =
+--   Equivalence.from (step*‿preserves‿saturated (if-cond* b-steps _ _ ◅◅ (if-false _ _ ◅ ε))) ⟨$⟩ saturate env els
+-- saturate {Γ} {σ} env {.u ▷ t} (lam u f) = value⇒halts (lam u (sub (shift σ) f)) , sat-f
+--   where
+--     f′ = sub (shift σ) f
+
+--     sat-f : ∀ {e : Tm _ u} → Saturated e → Saturated (lam u f′ · e)
+--     sat-f {e} sat-e@((e′ , steps , v) , _) = Equivalence.from (step*‿preserves‿saturated f‿e==>f←σe) ⟨$⟩ sat
+--       where
+--         f←σe = sub (σ , e′) f
+--         f′‿e = lam u f′ · e
+
+--         sat-e′ : Saturated e′
+--         sat-e′ = Equivalence.to (step*‿preserves‿saturated steps) ⟨$⟩ sat-e
+
+--         sat : Saturated f←σe
+--         sat = saturate (env , (v , sat-e′)) f
+
+--         f‿e==>f←σe : f′‿e ==>* f←σe
+--         f‿e==>f←σe = subst (λ f₀ → _ ==>* f₀) lemma (app-lam* steps v (sub (shift σ) f))
+--           where
+--             lemma : sub (∅ , e′) (sub (shift σ) f) ≡ sub (σ , e′) f
+--             lemma rewrite sym (sub-⊢⊢⋆ (∅ , e′) (shift σ) f) | innermost‿last σ e′ = refl
+
+-- normalization : ∀ {t} → (e : Tm ∅ t) → Halts e
+-- normalization e rewrite sym (sub-refl e) = saturated⇒halts (saturate ∅ e)
