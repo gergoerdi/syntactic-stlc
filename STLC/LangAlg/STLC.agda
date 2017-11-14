@@ -12,7 +12,7 @@ data Ty : Set where
   -- _[×]_ : Ty → Ty → Ty
 
 open import Data.Vec
-open import LangAlg.Base Ty
+open import LangAlg.Code Ty
 open import Function using (_$_; _∘′_)
 open import Relation.Binary.PropositionalEquality
 
@@ -30,20 +30,17 @@ STLC =
 
 open import LangAlg STLC
 open import Ren Ty
--- open import Data.Fin using (#_)
-
--- Tm : Ctx → Ty → Set
--- Tm = ⟦ STLC ⟧
+open import Data.Fin using (#_; zero; suc)
 
 [var] : ∀ {t Γ} → Var t Γ → Tm Γ t
 [var] = var
 
-pattern [lam] t e = here (bind t e {{refl}})
-pattern _[·]_ {u} {t} f e = there (here (some u (some t (node (f ∷ e ∷ []) {{refl}}))))
+pattern [lam] t e = con zero (bind t e {{refl}})
+pattern _[·]_ {u} {t} f e = con (suc zero) (some u (some t (node (f ∷ e ∷ []) {{refl}})))
 
-pattern [true] = there (there (here (node [] {{refl}})))
-pattern [false] = there (there (there (here (node [] {{refl}}))))
-pattern [if]_[then]_[else]_ {t} b thn els = there (there (there (there (here (some t (node (b ∷ thn ∷ els ∷ []) {{refl}}))))))
+pattern [true] = con (suc (suc zero)) (node [] {{refl}})
+pattern [false] = con (suc (suc (suc zero))) (node [] {{refl}})
+pattern [if]_[then]_[else]_ {t} b thn els = con (suc (suc (suc (suc zero)))) (some t (node (b ∷ thn ∷ els ∷ []) {{refl}}))
 
 -- _[,]_ : ∀ {t u Γ} → Tm Γ t → Tm Γ u → Tm Γ (t [×] u)
 -- _[,]_ {t} {u} e₁ e₂ = con (# 5) $ some t (some u (node (e₁ ∷ e₂ ∷ [])))
@@ -54,13 +51,13 @@ pattern [if]_[then]_[else]_ {t} b thn els = there (there (there (there (here (so
 -- [snd] :  ∀ {t u Γ} → Tm Γ (t [×] u) → Tm Γ u
 -- [snd] {t} {u} e = con (# 7) $ some t (some u (node (e ∷ [])))
 
-pattern ∎ = there (there (there (there (there ()))))
+pattern ✓ = con (suc (suc (suc (suc (suc ()))))) _
 
 ID : ∀ {Γ} t → Tm Γ (t ▷ t)
-ID t = [lam] t ([var] vz)
+ID t = [lam] t $ [var] vz
 
 CONST : ∀ {Γ} t u → Tm Γ (t ▷ u ▷ t)
-CONST t u = [lam] t ([lam] u ([var] (vs vz)))
+CONST t u = [lam] t $ [lam] u $ [var] (vs vz)
 
 CONST‿ID : ∀ {Γ} t u → Tm Γ (u ▷ (t ▷ t))
 CONST‿ID t u = CONST (t ▷ t) u [·] ID t
@@ -232,7 +229,7 @@ saturate {Γ} {σ} env {.u ▷ t} ([lam] u f) = value⇒halts (lam u (sub (shift
           where
             lemma : sub (∅ , e′) (sub (shift σ) f) ≡ sub (σ , e′) f
             lemma rewrite sym (sub-⊢⊢⋆ (∅ , e′) (shift σ) f) | innermost‿last σ e′ = refl
-saturate env ∎
+saturate env ✓
 
 normalization : ∀ {t} → (e : Tm ∅ t) → Halts e
 normalization e rewrite sym (sub-refl e) = saturated⇒halts (saturate ∅ e)
