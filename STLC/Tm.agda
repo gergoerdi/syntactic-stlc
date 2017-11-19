@@ -1,10 +1,6 @@
 module Tm where
 
-data Ty : Set where
-  ∙   : Ty
-  _▷_ : Ty → Ty → Ty
-  Bool : Ty
-
+open import Ty
 open import Ctx Ty public
 open import Ren Ty public
 
